@@ -1,3 +1,8 @@
+// This file defines the admin reports page with role-based access.
+// It uses a hard-coded list of admin emails to grant administrative rights
+// even before a profile record exists, and it removes the GitHub OAuth flow.
+// Instead, users should log in via the custom email/password portal at /login.
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -19,19 +24,31 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  // Hard‑coded list of admin email addresses. Users with an email in this list are treated as admins.
+  const ADMIN_EMAILS = ['kevin@getbetter.co.uk', 'tom@getbetter.co.uk'];
 
-  // Fetch session and profile
+  // Fetch the current auth session and subscribe to changes. This keeps the `session`
+  // state up to date as the user signs in or out.
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: authListener } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
+    const { data: listener } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
     return () => {
-      authListener.subscription?.unsubscribe();
+      listener.subscription?.unsubscribe();
     };
   }, []);
 
+  // Determine whether the current user is an admin. First, check if their email
+  // appears in the hard‑coded list. If not, look up their profile record to see
+  // if they have the `is_admin` flag set.
   useEffect(() => {
-    const fetchProfile = async () => {
+    const checkAdmin = async () => {
       if (session?.user) {
+        // Grant admin privileges if email matches one of the preconfigured addresses.
+        if (ADMIN_EMAILS.includes(session.user.email)) {
+          setIsAdmin(true);
+          return;
+        }
+        // Otherwise, fetch the profile to check for an admin flag.
         const { data, error } = await supabase
           .from('profiles')
           .select('is_admin')
@@ -44,13 +61,15 @@ export default function AdminPage() {
           setIsAdmin(data?.is_admin ?? false);
         }
       } else {
+        // No session means user is not signed in.
         setIsAdmin(null);
       }
     };
-    fetchProfile();
+    checkAdmin();
   }, [session]);
 
-  // Fetch reports if admin
+  // Load all maintenance reports, sorted with the most recent first, when the user
+  // has admin access. This will be triggered again if `isAdmin` changes.
   useEffect(() => {
     const fetchReports = async () => {
       if (isAdmin) {
@@ -73,10 +92,7 @@ export default function AdminPage() {
     }
   }, [isAdmin]);
 
-  const signInWithGitHub = async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'github' });
-  };
-
+  // Log the current user out.
   const signOut = async () => {
     await supabase.auth.signOut();
   };
@@ -94,12 +110,12 @@ export default function AdminPage() {
               Log out
             </button>
           ) : (
-            <button
-              onClick={signInWithGitHub}
+            <Link
+              href="/login"
               className="px-3 py-2 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
             >
               Sign in
-            </button>
+            </Link>
           )}
           <Link
             href="/"
@@ -113,13 +129,10 @@ export default function AdminPage() {
         <p>Loading...</p>
       ) : !session ? (
         <p className="text-gray-300">
-          You are not signed in.{' '}
-          <button
-            onClick={signInWithGitHub}
-            className="underline text-fuchsia-300"
-          >
+          You are not signed in.{" "}
+          <Link href="/login" className="underline text-fuchsia-300">
             Sign in
-          </button>{' '}
+          </Link>{" "}
           to continue.
         </p>
       ) : !isAdmin ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 
 // Define a type for tasks
@@ -102,6 +103,8 @@ export default function Page() {
   const [deviceName, setDeviceName] = useState('');
   const [nextMaintenanceAt, setNextMaintenanceAt] = useState('');
   const [session, setSession] = useState<any>(null);
+  // Track if the current user is an admin. null means unknown, false means not admin.
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   // Listen to auth changes so we can show the current user and restrict saving
   useEffect(() => {
@@ -111,6 +114,27 @@ export default function Page() {
       listener.subscription?.unsubscribe();
     };
   }, []);
+  // When the session changes, look up the user's profile to determine if they are an admin.
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (session?.user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', session.user.id)
+          .single();
+        if (error) {
+          console.error('Failed to fetch profile', error);
+          setIsAdmin(false);
+        } else {
+          setIsAdmin(data?.is_admin ?? false);
+        }
+      } else {
+        setIsAdmin(null);
+      }
+    };
+    checkAdmin();
+  }, [session]);
 
   // Derived progress metrics
   const completion = useMemo(() => {
@@ -193,8 +217,8 @@ export default function Page() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-8">
-      <header className="flex items-center justify-between mb-8">
+    <div className="max-w-4xl mx-auto p-8">
+      <header className="flex items-start md:items-center flex-col md:flex-row justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold mb-1">Maintenance Dashboard</h1>
           {session ? (
@@ -203,18 +227,26 @@ export default function Page() {
             <p className="text-sm text-gray-400">You are not signed in</p>
           )}
         </div>
-        <div className="space-x-2">
+        <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="px-3 py-2 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
+            >
+              Admin
+            </Link>
+          )}
           {session ? (
             <button
               onClick={signOut}
-              className="px-3 py-2 rounded border border-white/20 hover:bg-white/10"
+              className="px-3 py-2 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
             >
               Log out
             </button>
           ) : (
             <button
               onClick={signInWithGitHub}
-              className="px-3 py-2 rounded border border-white/20 hover:bg-white/10"
+              className="px-3 py-2 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
             >
               Sign in with GitHub
             </button>
@@ -224,45 +256,45 @@ export default function Page() {
 
       {/* Owner, device and date fields */}
       <div className="grid gap-4 mb-6 md:grid-cols-3">
-        <div className="rounded border border-white/20 p-4">
+        <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur-md p-4 hover:ring-1 hover:ring-fuchsia-500/40 transition">
           <label className="block text-xs text-gray-400 mb-1">Owner</label>
           <input
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
             placeholder="Your name"
-            className="w-full bg-transparent border-b border-white/20 py-1 px-1 outline-none"
+            className="w-full bg-transparent border-b border-white/30 py-1 px-1 outline-none"
           />
         </div>
-        <div className="rounded border border-white/20 p-4">
+        <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur-md p-4 hover:ring-1 hover:ring-fuchsia-500/40 transition">
           <label className="block text-xs text-gray-400 mb-1">Device Name</label>
           <input
             value={deviceName}
             onChange={(e) => setDeviceName(e.target.value)}
             placeholder="Device name"
-            className="w-full bg-transparent border-b border-white/20 py-1 px-1 outline-none"
+            className="w-full bg-transparent border-b border-white/30 py-1 px-1 outline-none"
           />
         </div>
-        <div className="rounded border border-white/20 p-4">
+        <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur-md p-4 hover:ring-1 hover:ring-fuchsia-500/40 transition">
           <label className="block text-xs text-gray-400 mb-1">Next Maintenance Date</label>
           <input
             type="date"
             value={nextMaintenanceAt}
             onChange={(e) => setNextMaintenanceAt(e.target.value)}
-            className="w-full bg-transparent border-b border-white/20 py-1 px-1 outline-none"
+            className="w-full bg-transparent border-b border-white/30 py-1 px-1 outline-none"
           />
         </div>
       </div>
 
       {/* Progress and points */}
       <div className="grid gap-4 mb-6 md:grid-cols-2">
-        <div className="rounded border border-white/20 p-4">
+        <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur-md p-4 hover:ring-1 hover:ring-fuchsia-500/40 transition">
           <div className="flex items-center justify-between text-sm mb-2">
             <span>Overall Progress</span>
             <span>{completion.pct}%</span>
           </div>
           <div className="h-3 w-full bg-white/20 rounded-full overflow-hidden">
             <div
-              className="h-3 bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-rose-500"
+              className="h-3 bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-rose-500 shadow-[0_0_10px] shadow-fuchsia-500/40"
               style={{ width: `${completion.pct}%` }}
             />
           </div>
@@ -270,18 +302,18 @@ export default function Page() {
             {completion.done} of {completion.total} tasks done
           </p>
         </div>
-        <div className="rounded border border-white/20 p-4">
+        <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur-md p-4 hover:ring-1 hover:ring-fuchsia-500/40 transition">
           <div className="text-sm mb-2">Points & Badges</div>
           <div className="text-2xl font-bold mb-1">{points}</div>
           <div className="flex flex-wrap gap-2 text-xs">
             {completion.pct >= 30 && (
-              <span className="px-2 py-1 border border-white/20 rounded-full">⚡ Starter</span>
+              <span className="px-2 py-1 border border-white/30 rounded-full">⚡ Starter</span>
             )}
             {completion.pct >= 60 && (
-              <span className="px-2 py-1 border border-white/20 rounded-full">🧹 Optimiser</span>
+              <span className="px-2 py-1 border border-white/30 rounded-full">🧹 Optimiser</span>
             )}
             {completion.pct === 100 && (
-              <span className="px-2 py-1 border border-white/20 rounded-full">🏅 All Clear</span>
+              <span className="px-2 py-1 border border-white/30 rounded-full">🏅 All Clear</span>
             )}
           </div>
         </div>
@@ -290,7 +322,10 @@ export default function Page() {
       {/* Task list */}
       <div className="space-y-4 mb-6">
         {tasks.map((task) => (
-          <div key={task.id} className="rounded border border-white/20 p-4">
+          <div
+            key={task.id}
+            className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur-md p-4 hover:ring-1 hover:ring-fuchsia-500/40 transition"
+          >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <input
@@ -309,7 +344,7 @@ export default function Page() {
                   href={task.link}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs underline"
+                  className="text-xs underline hover:text-fuchsia-300"
                 >
                   Guide
                 </a>
@@ -319,7 +354,7 @@ export default function Page() {
               value={task.note || ''}
               onChange={(e) => updateNote(task.id, e.target.value)}
               placeholder="Notes..."
-              className="mt-2 w-full bg-transparent border-b border-white/20 py-1 px-1 text-sm outline-none"
+              className="mt-2 w-full bg-transparent border-b border-white/30 py-1 px-1 text-sm outline-none"
             />
           </div>
         ))}
@@ -328,7 +363,7 @@ export default function Page() {
       <div className="flex justify-end gap-2 mb-10">
         <button
           onClick={saveReport}
-          className="px-4 py-2 rounded bg-white text-black hover:opacity-90"
+          className="px-5 py-2 rounded-2xl bg-white text-black hover:bg-gray-200 transition"
         >
           Save Report
         </button>

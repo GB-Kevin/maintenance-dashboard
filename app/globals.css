@@ -2,4 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-/* You can add global styles here */
+/* Global styles and animated background */
+
+body {
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Animated blurred gradient background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(74, 0, 224, 0.5), transparent 60%),
+    radial-gradient(circle at 80% 70%, rgba(147, 51, 234, 0.4), transparent 60%);
+  filter: blur(120px);
+  animation: bg-animation 30s ease-in-out infinite alternate;
+  z-index: -1;
+}
+
+@keyframes bg-animation {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(10%, -10%) scale(1.1);
+  }
+  100% {
+    transform: translate(-10%, 10%) scale(1);
+  }
+}
+
+/* Utility classes for glass panels: use via Tailwind utilities */

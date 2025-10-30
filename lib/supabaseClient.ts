@@ -1,4 +1,5 @@
-iimport { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+
 
 // Initialize the Supabase client with your project URL and anon key.
 // These values must be provided via environment variables. See `.env.example`.

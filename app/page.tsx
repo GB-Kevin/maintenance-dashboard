@@ -105,6 +105,8 @@ export default function Page() {
   const [session, setSession] = useState<any>(null);
   // Track if the current user is an admin. null means unknown, false means not admin.
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  // Hard-coded list of admin email addresses. Users with an email in this list are treated as admins.
+  const ADMIN_EMAILS = ['kevin@getbetter.co.uk', 'tom@getbetter.co.uk'];
 
   // Listen to auth changes so we can show the current user and restrict saving
   useEffect(() => {
@@ -118,6 +120,12 @@ export default function Page() {
   useEffect(() => {
     const checkAdmin = async () => {
       if (session?.user) {
+        // If the user's email matches one of the hard-coded admins, grant admin access.
+        if (ADMIN_EMAILS.includes(session.user.email)) {
+          setIsAdmin(true);
+          return;
+        }
+        // Otherwise, look up their admin status in the profiles table.
         const { data, error } = await supabase
           .from('profiles')
           .select('is_admin')
@@ -206,11 +214,6 @@ export default function Page() {
     }
   };
 
-  // OAuth sign in
-  const signInWithGitHub = async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'github' });
-  };
-
   // Log out
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -244,12 +247,12 @@ export default function Page() {
               Log out
             </button>
           ) : (
-            <button
-              onClick={signInWithGitHub}
+            <Link
+              href="/login"
               className="px-3 py-2 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
             >
-              Sign in with GitHub
-            </button>
+              Sign in
+            </Link>
           )}
         </div>
       </header>

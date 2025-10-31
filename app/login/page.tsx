@@ -5,16 +5,23 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 
 // This page provides a standalone login portal for users to sign up or sign in
-// using an email and password. It replaces the GitHub OAuth flow.
+// using a one‑time password (OTP) sent to their email. Users enter their email,
+// request a six‑digit code, and then enter the code to verify. This replaces the
+// previous email/password and GitHub OAuth flows.
 
 export default function LoginPage() {
+  // Current authenticated session, if any.
   const [session, setSession] = useState<any>(null);
+  // Email entered by the user when requesting a code.
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  // Six‑digit code entered by the user after requesting a code.
+  const [code, setCode] = useState('');
+  // Indicates whether a code has been sent to the user's email.
+  const [codeSent, setCodeSent] = useState(false);
+  // Holds any error message returned from Supabase.
   const [error, setError] = useState<string | null>(null);
 
-  // Keep the session state in sync with Supabase auth events.
+  // Synchronize local session state with Supabase auth events.
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: listener } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
@@ -23,37 +30,51 @@ export default function LoginPage() {
     };
   }, []);
 
-  // Handle sign‑in or sign‑up depending on the current mode. Any errors are captured
-  // and displayed below the form.
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Send an OTP code to the provided email. If the user doesn’t exist, Supabase
+  // will create one automatically (shouldCreateUser defaults to true). Any errors
+  // are captured and displayed to the user.
+  const sendCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (mode === 'signup') {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (signUpError) {
-        setError(signUpError.message);
-        return;
-      }
-    } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (signInError) {
-        setError(signInError.message);
-        return;
-      }
+    const { error: signInError } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
+    });
+    if (signInError) {
+      setError(signInError.message);
+      return;
     }
-    // Clear form on successful submission
-    setEmail('');
-    setPassword('');
+    setCodeSent(true);
   };
 
+  // Verify the OTP code entered by the user. Upon success, the session will
+  // update and the user will be considered logged in. Errors are displayed.
+  const verifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: 'email',
+    });
+    if (verifyError) {
+      setError(verifyError.message);
+      return;
+    }
+    // Set the session (if returned) and reset local state on success.
+    setSession(data?.session ?? null);
+    setEmail('');
+    setCode('');
+    setCodeSent(false);
+  };
+
+  // Sign the user out and reset local state.
   const signOut = async () => {
     await supabase.auth.signOut();
+    setSession(null);
+    setEmail('');
+    setCode('');
+    setCodeSent(false);
   };
 
   return (
@@ -86,55 +107,56 @@ export default function LoginPage() {
           </button>
         </div>
       ) : (
-        <div className="w-full max-w-sm mx-auto">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              className="w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md px-4 py-3 text-white placeholder-gray-400 focus:outline-none"
-              required
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              className="w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md px-4 py-3 text-white placeholder-gray-400 focus:outline-none"
-              required
-            />
-            {error && <p className="text-red-400 text-sm">{error}</p>}
-            <button
-              type="submit"
-              className="w-full px-4 py-3 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
-            >
-              {mode === 'signin' ? 'Sign in' : 'Sign up'}
-            </button>
-          </form>
-          <div className="mt-4 text-sm">
-            {mode === 'signin' ? (
-              <>
-                Don’t have an account?{' '}
-                <button
-                  onClick={() => setMode('signup')}
-                  className="underline text-fuchsia-300"
-                >
-                  Sign up
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{' '}
-                <button
-                  onClick={() => setMode('signin')}
-                  className="underline text-fuchsia-300"
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </div>
+        <div className="w-full max-w-sm mx-auto space-y-4">
+          {!codeSent ? (
+            <form onSubmit={sendCode} className="space-y-4">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className="w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md px-4 py-3 text-white placeholder-gray-400 focus:outline-none"
+                required
+              />
+              {error && <p className="text-red-400 text-sm">{error}</p>}
+              <button
+                type="submit"
+                className="w-full px-4 py-3 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
+              >
+                Send code
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={verifyCode} className="space-y-4">
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="6‑digit code"
+                maxLength={6}
+                className="w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md px-4 py-3 text-white placeholder-gray-400 focus:outline-none"
+                required
+              />
+              {error && <p className="text-red-400 text-sm">{error}</p>}
+              <button
+                type="submit"
+                className="w-full px-4 py-3 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
+              >
+                Verify code
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeSent(false);
+                  setCode('');
+                  setError(null);
+                }}
+                className="w-full px-4 py-3 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
+              >
+                Back
+              </button>
+            </form>
+          )}
         </div>
       )}
     </div>

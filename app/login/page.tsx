@@ -5,19 +5,17 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 
 // This page provides a standalone login portal for users to sign up or sign in
-// using a one‑time password (OTP) sent to their email. Users enter their email,
-// request a six‑digit code, and then enter the code to verify. This replaces the
-// previous email/password and GitHub OAuth flows.
+// using a magic link sent to their email. Users enter their email and request
+// a sign‑in link. Supabase will send them a unique URL they can click to
+// authenticate. This flow replaces the previous one‑time password (OTP) flow.
 
 export default function LoginPage() {
   // Current authenticated session, if any.
   const [session, setSession] = useState<any>(null);
-  // Email entered by the user when requesting a code.
+  // Email entered by the user.
   const [email, setEmail] = useState('');
-  // Six‑digit code entered by the user after requesting a code.
-  const [code, setCode] = useState('');
-  // Indicates whether a code has been sent to the user's email.
-  const [codeSent, setCodeSent] = useState(false);
+  // Indicates whether a link has been sent to the user's email.
+  const [linkSent, setLinkSent] = useState(false);
   // Holds any error message returned from Supabase.
   const [error, setError] = useState<string | null>(null);
 
@@ -30,42 +28,25 @@ export default function LoginPage() {
     };
   }, []);
 
-  // Send an OTP code to the provided email. If the user doesn’t exist, Supabase
-  // will create one automatically (shouldCreateUser defaults to true). Any errors
-  // are captured and displayed to the user.
-  const sendCode = async (e: React.FormEvent) => {
+  // Send a magic sign‑in link to the provided email. If the user doesn’t exist,
+  // Supabase will create one automatically (shouldCreateUser defaults to true).
+  const sendLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const { error: signInError } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        // Redirect users back to your site after they click the link. You can
+        // customize this via NEXT_PUBLIC_SUPABASE_REDIRECT or NEXT_PUBLIC_SITE_URL.
+        emailRedirectTo: process.env.NEXT_PUBLIC_SUPABASE_REDIRECT || process.env.NEXT_PUBLIC_SITE_URL || undefined,
+      },
     });
     if (signInError) {
       setError(signInError.message);
       return;
     }
-    setCodeSent(true);
-  };
-
-  // Verify the OTP code entered by the user. Upon success, the session will
-  // update and the user will be considered logged in. Errors are displayed.
-  const verifyCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    const { data, error: verifyError } = await supabase.auth.verifyOtp({
-      email,
-      token: code,
-      type: 'email',
-    });
-    if (verifyError) {
-      setError(verifyError.message);
-      return;
-    }
-    // Set the session (if returned) and reset local state on success.
-    setSession(data?.session ?? null);
-    setEmail('');
-    setCode('');
-    setCodeSent(false);
+    setLinkSent(true);
   };
 
   // Sign the user out and reset local state.
@@ -73,8 +54,7 @@ export default function LoginPage() {
     await supabase.auth.signOut();
     setSession(null);
     setEmail('');
-    setCode('');
-    setCodeSent(false);
+    setLinkSent(false);
   };
 
   return (
@@ -108,8 +88,8 @@ export default function LoginPage() {
         </div>
       ) : (
         <div className="w-full max-w-sm mx-auto space-y-4">
-          {!codeSent ? (
-            <form onSubmit={sendCode} className="space-y-4">
+          {!linkSent ? (
+            <form onSubmit={sendLink} className="space-y-4">
               <input
                 type="email"
                 value={email}
@@ -123,39 +103,26 @@ export default function LoginPage() {
                 type="submit"
                 className="w-full px-4 py-3 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
               >
-                Send code
+                Send sign‑in link
               </button>
             </form>
           ) : (
-            <form onSubmit={verifyCode} className="space-y-4">
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="6‑digit code"
-                maxLength={6}
-                className="w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md px-4 py-3 text-white placeholder-gray-400 focus:outline-none"
-                required
-              />
-              {error && <p className="text-red-400 text-sm">{error}</p>}
-              <button
-                type="submit"
-                className="w-full px-4 py-3 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
-              >
-                Verify code
-              </button>
+            <div className="space-y-4">
+              <p>
+                We’ve sent a link to <span className="font-medium">{email}</span>. Please
+                check your email and click the link to continue.
+              </p>
               <button
                 type="button"
                 onClick={() => {
-                  setCodeSent(false);
-                  setCode('');
+                  setLinkSent(false);
                   setError(null);
                 }}
                 className="w-full px-4 py-3 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md hover:ring-1 hover:ring-fuchsia-500/40 transition"
               >
                 Back
               </button>
-            </form>
+            </div>
           )}
         </div>
       )}
